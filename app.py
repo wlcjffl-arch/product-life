@@ -7,9 +7,13 @@ from core.ui import setup_page
 setup_page("상품 판매·반품 분석", "📊")
 db.init_db()
 
-st.title("📊 상품 판매·반품 분석 대시보드")
-st.caption("판매 흐름 · 반품 · 재고를 한눈에 — 의류몰 운영을 위한 분석 도구")
-st.write("")
+st.markdown(
+    '<div class="pl-hero">'
+    '<h2>📊 상품 판매·반품 분석</h2>'
+    '<p>판매 흐름 · 반품 · 재고를 한눈에 — 의류몰 운영을 위한 분석 대시보드</p>'
+    '</div>',
+    unsafe_allow_html=True,
+)
 
 lo, hi = db.date_bounds()
 channels = db.list_channels()
@@ -29,13 +33,12 @@ steps = [
     ("🚦", "상품 상태/알림", "반품율↑·재고부족·무판매 한 표로"),
     ("⚙️", "설정", "판단 기준·입고기간 조정"),
 ]
-cols = st.columns(len(steps))
-for col, (emoji, title, desc) in zip(cols, steps):
-    with col:
-        with st.container(border=True):
-            st.markdown(f"### {emoji}")
-            st.markdown(f"**{title}**")
-            st.caption(desc)
+cards = "".join(
+    f'<div class="pl-card"><div class="pl-ico">{e}</div>'
+    f'<div class="t">{t}</div><div class="d">{d}</div></div>'
+    for e, t, d in steps
+)
+st.markdown(f'<div class="pl-cards">{cards}</div>', unsafe_allow_html=True)
 
 st.write("")
 st.info("💡 왼쪽 사이드바에서 **판매처**와 **날짜 범위**를 고르면 모든 페이지에 함께 적용됩니다.")
