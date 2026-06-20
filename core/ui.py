@@ -8,7 +8,7 @@ import os
 
 import streamlit as st
 
-from . import db, store
+from . import db
 
 _LABEL = {"sales": "📦 판매 데이터", "returns": "🔁 반품 데이터", "all": "📊 전체 데이터"}
 _ASSETS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
@@ -91,14 +91,14 @@ def setup_page(title, icon):
 
 
 def sidebar_filters(kind="all"):
-    store.ready()
+    db.init_db()
     st.sidebar.header("🔎 조회 조건")
 
-    channels = ["전체"] + store.list_channels()
+    channels = ["전체"] + db.list_channels()
     channel = st.sidebar.selectbox("판매처", channels, key="flt_channel")
 
     label = _LABEL.get(kind, "데이터")
-    lo, hi = store.date_bounds(kind)
+    lo, hi = db.date_bounds(kind)
     if not lo:
         st.sidebar.caption(f"{label}: 아직 없음")
         return channel, None, None

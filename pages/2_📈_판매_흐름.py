@@ -3,15 +3,15 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
-from core import analytics, store
+from core import analytics, db
 from core.ui import setup_page, sidebar_filters
 
 setup_page("판매 흐름", "📈")
 st.title("📈 판매 흐름")
 
 channel, start, end = sidebar_filters("sales")
-settings = store.load_settings()
-sales = store.load_sales(channel, start, end)
+settings = db.load_settings()
+sales = db.load_sales_daily(channel, start, end)
 
 if sales.empty:
     st.info("선택한 조건에 해당하는 판매 데이터가 없습니다. "
@@ -115,7 +115,7 @@ rank = (sales_f.groupby(["product_code", "product_name"], as_index=False)
                .agg(총판매수=("sold_qty", "sum"), 입고수량=("inbound_qty", "sum")))
 
 # 스냅샷에서 상품 속성·현재 상태 (옵션 합산)
-snap = store.load_snapshot(channel)
+snap = db.load_snapshot(channel)
 if not snap.empty:
     snap_g = (snap.groupby("product_code", as_index=False)
                   .agg(원가=("cost", "mean"), 판매단가=("sale_price", "mean"),

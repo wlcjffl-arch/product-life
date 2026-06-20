@@ -1,11 +1,11 @@
 """상품 판매·반품 분석 대시보드 — 홈."""
 import streamlit as st
 
-from core import store
+from core import db
 from core.ui import setup_page
 
 setup_page("상품 판매·반품 분석", "📊")
-store.ready()
+db.init_db()
 
 st.markdown(
     '<div class="pl-hero">'
@@ -15,8 +15,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-lo, hi = store.date_bounds()
-channels = store.list_channels()
+lo, hi = db.date_bounds()
+channels = db.list_channels()
 
 c1, c2, c3 = st.columns(3)
 c1.metric("🏬 등록된 판매처", f"{len(channels)} 곳")

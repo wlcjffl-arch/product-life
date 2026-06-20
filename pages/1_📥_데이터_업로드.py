@@ -1,11 +1,11 @@
 """데이터 업로드 페이지."""
 import streamlit as st
 
-from core import config, db, ingest, store
+from core import config, db, ingest
 from core.ui import setup_page
 
 setup_page("데이터 업로드", "📥")
-store.ready()
+db.init_db()
 st.title("📥 데이터 업로드")
 st.caption("판매 분석 파일(엑셀/CSV)과 반품 파일을 올립니다. 같은 날짜·주문은 자동으로 합쳐집니다.")
 
@@ -46,7 +46,7 @@ ftype = st.radio("파일 종류", ["sales", "returns"],
 
 # ── 판매처 결정 ──
 if ftype == "sales":
-    existing = store.list_channels()
+    existing = db.list_channels()
     pick = st.selectbox("판매처 선택", ["+ 새로 입력"] + existing)
     channel = st.text_input("판매처 이름", value="" if pick == "+ 새로 입력" else pick).strip()
     st.caption("💡 반품율이 정확히 연결되려면 판매처 이름을 **반품 파일의 '판매처명'과 똑같이** "
@@ -99,5 +99,4 @@ if st.button("💾 저장 (누적)", type="primary", disabled=disabled):
         chans = ", ".join(sorted(rdf["channel"].dropna().unique())[:8])
         st.success(f"✅ 반품 데이터 저장 완료 — 추가 {ins:,}건 / 갱신 {upd:,}건 "
                    f"(기간 {dmin} ~ {dmax})\n\n판매처: {chans}")
-    store.clear()   # 캐시 비우기 → 다른 페이지에 새 데이터 즉시 반영
     st.balloons()

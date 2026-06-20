@@ -1,7 +1,7 @@
 """상품 상태 / 알림 페이지."""
 import streamlit as st
 
-from core import analytics, store
+from core import analytics, db
 from core.ui import setup_page, sidebar_filters
 
 setup_page("상품 상태 / 알림", "🚦")
@@ -9,12 +9,12 @@ st.title("🚦 상품 상태 / 알림")
 st.caption("🔴 반품율 높음  ·  🟠 판매 적고 반품율 높음  ·  🟡 재고 있는데 무판매  ·  🔵 재고부족")
 
 channel, start, end = sidebar_filters("all")
-settings = store.load_settings()
+settings = db.load_settings()
 
-sales = store.load_sales(channel, start, end)
-returns = store.load_returns(channel, start, end)
-snapshot = store.load_snapshot(channel)
-restock = store.load_restock_settings()
+sales = db.load_sales_daily(channel, start, end)
+returns = db.load_returns(channel, start, end)
+snapshot = db.load_snapshot(channel)
+restock = db.load_restock_settings()
 
 if snapshot.empty:
     st.info("상품 스냅샷이 없습니다. 먼저 판매 분석 파일을 업로드하세요.")
