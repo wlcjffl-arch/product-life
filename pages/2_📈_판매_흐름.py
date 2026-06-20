@@ -4,9 +4,9 @@ import pandas as pd
 import streamlit as st
 
 from core import analytics, db
-from core.ui import sidebar_filters
+from core.ui import setup_page, sidebar_filters
 
-st.set_page_config(page_title="판매 흐름", page_icon="📈", layout="wide")
+setup_page("판매 흐름", "📈")
 st.title("📈 판매 흐름")
 
 channel, start, end = sidebar_filters("sales")

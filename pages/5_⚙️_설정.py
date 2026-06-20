@@ -3,8 +3,9 @@ import pandas as pd
 import streamlit as st
 
 from core import analytics, config, db
+from core.ui import setup_page
 
-st.set_page_config(page_title="설정", page_icon="⚙️", layout="wide")
+setup_page("설정", "⚙️")
 db.init_db()
 st.title("⚙️ 설정")
 

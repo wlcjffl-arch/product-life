@@ -2,9 +2,9 @@
 import streamlit as st
 
 from core import analytics, db
-from core.ui import sidebar_filters
+from core.ui import setup_page, sidebar_filters
 
-st.set_page_config(page_title="상품 상태 / 알림", page_icon="🚦", layout="wide")
+setup_page("상품 상태 / 알림", "🚦")
 st.title("🚦 상품 상태 / 알림")
 st.caption("🔴 반품율 높음  ·  🟠 판매 적고 반품율 높음  ·  🟡 재고 있는데 무판매  ·  🔵 재고부족")
 

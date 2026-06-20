@@ -11,6 +11,37 @@ from . import db
 
 _LABEL = {"sales": "📦 판매 데이터", "returns": "🔁 반품 데이터", "all": "📊 전체 데이터"}
 
+_CSS = """
+<style>
+.block-container {padding-top: 2.2rem; padding-bottom: 3rem; max-width: 1240px;}
+footer {visibility: hidden;}
+[data-testid="stMetric"] {
+  background: linear-gradient(180deg, #FAFAFE 0%, #F3F3FB 100%);
+  border: 1px solid #ECECF6;
+  border-radius: 14px;
+  padding: 14px 18px;
+  box-shadow: 0 1px 3px rgba(20, 20, 60, 0.04);
+}
+[data-testid="stMetricLabel"] p {font-size: 0.85rem; opacity: 0.6;}
+[data-testid="stMetricValue"] {font-weight: 700;}
+h1 {font-weight: 800; letter-spacing: -0.6px;}
+h2, h3 {font-weight: 700; letter-spacing: -0.3px;}
+.stButton > button, .stDownloadButton > button {
+  border-radius: 10px; font-weight: 600; border: 1px solid #E3E3EF;
+}
+[data-testid="stSidebar"] {border-right: 1px solid #EEEEF4;}
+div[data-testid="stDataFrame"] {border-radius: 12px; overflow: hidden; border: 1px solid #ECECF4;}
+[data-testid="stExpander"] {border-radius: 12px; border: 1px solid #ECECF4;}
+hr {margin: 1.1rem 0;}
+</style>
+"""
+
+
+def setup_page(title, icon):
+    """모든 페이지 공통: 페이지 설정 + 디자인 적용. (Streamlit 첫 호출이어야 함)"""
+    st.set_page_config(page_title=title, page_icon=icon, layout="wide")
+    st.markdown(_CSS, unsafe_allow_html=True)
+
 
 def sidebar_filters(kind="all"):
     db.init_db()

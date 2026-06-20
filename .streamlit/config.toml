@@ -1,0 +1,8 @@
+# 앱 전체 디자인 테마 (색상·폰트)
+[theme]
+base = "light"
+primaryColor = "#6C5CE7"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F5F5FB"
+textColor = "#22223B"
+font = "sans serif"

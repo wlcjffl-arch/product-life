@@ -2,8 +2,9 @@
 import streamlit as st
 
 from core import config, db, ingest
+from core.ui import setup_page
 
-st.set_page_config(page_title="데이터 업로드", page_icon="📥", layout="wide")
+setup_page("데이터 업로드", "📥")
 db.init_db()
 st.title("📥 데이터 업로드")
 st.caption("판매 분석 파일(엑셀/CSV)과 반품 파일을 올립니다. 같은 날짜·주문은 자동으로 합쳐집니다.")
