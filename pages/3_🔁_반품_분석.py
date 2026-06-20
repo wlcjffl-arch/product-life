@@ -3,14 +3,14 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
-from core import db, ingest
+from core import ingest, store
 from core.ui import setup_page, sidebar_filters
 
 setup_page("반품 분석", "🔁")
 st.title("🔁 반품 분석")
 
 channel, start, end = sidebar_filters("returns")
-ret = db.load_returns(channel, start, end)
+ret = store.load_returns(channel, start, end)
 
 # 옵션에서 색상·사이즈를 파싱해 통일 (형태가 달라도 동일하게)
 if not ret.empty:
