@@ -1,0 +1,42 @@
+"""모든 페이지가 함께 쓰는 사이드바 필터(판매처 + 날짜범위).
+
+kind 로 '판매흐름용/반품용/전체용'을 구분합니다. 각 데이터의 실제 기간에 맞춰
+기본값·달력 범위가 정해지고, '전체 기간 보기'가 기본 켜져 있어 처음부터 데이터가 보입니다.
+"""
+import datetime as dt
+
+import streamlit as st
+
+from . import db
+
+_LABEL = {"sales": "📦 판매 데이터", "returns": "🔁 반품 데이터", "all": "📊 전체 데이터"}
+
+
+def sidebar_filters(kind="all"):
+    db.init_db()
+    st.sidebar.header("🔎 조회 조건")
+
+    channels = ["전체"] + db.list_channels()
+    channel = st.sidebar.selectbox("판매처", channels, key="flt_channel")
+
+    label = _LABEL.get(kind, "데이터")
+    lo, hi = db.date_bounds(kind)
+    if not lo:
+        st.sidebar.caption(f"{label}: 아직 없음")
+        return channel, None, None
+
+    st.sidebar.caption(f"{label} 보유 기간\n\n**{lo} ~ {hi}**")
+    show_all = st.sidebar.checkbox("전체 기간 보기", value=True, key=f"flt_all_{kind}")
+    if show_all:
+        return channel, lo, hi
+
+    lo_d, hi_d = dt.date.fromisoformat(lo), dt.date.fromisoformat(hi)
+    rng = st.sidebar.date_input(
+        "날짜 범위", value=(lo_d, hi_d), min_value=lo_d, max_value=hi_d,
+        key=f"flt_dates_{kind}",
+        help="이 데이터가 들어 있는 기간 안에서만 고를 수 있습니다.")
+    if isinstance(rng, (tuple, list)) and len(rng) == 2:
+        start, end = rng
+    else:
+        start, end = lo_d, hi_d
+    return channel, str(start), str(end)
