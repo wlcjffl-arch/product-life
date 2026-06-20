@@ -118,10 +118,14 @@ rank = (sales_f.groupby(["product_code", "product_name"], as_index=False)
 snap = db.load_snapshot(channel)
 if not snap.empty:
     snap_g = (snap.groupby("product_code", as_index=False)
-                  .agg(등록일자=("reg_date", "min"), 원가=("cost", "mean"),
-                       판매단가=("sale_price", "mean"), 평균금액=("amount", "mean"),
-                       현재재고=("stock", "sum"), 미발송수=("unshipped", "sum"),
-                       취소수량=("canceled", "sum")))
+                  .agg(원가=("cost", "mean"), 판매단가=("sale_price", "mean"),
+                       평균금액=("amount", "mean"), 현재재고=("stock", "sum"),
+                       미발송수=("unshipped", "sum"), 취소수량=("canceled", "sum")))
+    # 등록일자는 빈 값(None) 제외 후 최솟값 (None과 문자열 비교 에러 방지)
+    reg = (snap.dropna(subset=["reg_date"])
+               .groupby("product_code", as_index=False)
+               .agg(등록일자=("reg_date", "min")))
+    snap_g = snap_g.merge(reg, on="product_code", how="left")
     rank = rank.merge(snap_g, on="product_code", how="left")
 
 for c in ["등록일자", "원가", "판매단가", "평균금액", "현재재고", "미발송수", "취소수량"]:
