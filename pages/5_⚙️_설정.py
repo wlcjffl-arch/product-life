@@ -40,7 +40,32 @@ with st.form("thresholds"):
         st.success("저장했습니다.")
 
 st.divider()
-st.subheader("2) 상품별 입고기간 · 최소재고")
+st.subheader("2) 데이터 관리")
+st.caption("같은 파일을 여러 판매처 이름으로 잘못 올려 중복되면, '전체'에서 합산돼 수치가 부풀려 보입니다. "
+           "아래에서 중복된 판매처를 삭제하거나 전체 초기화하세요.")
+stats = db.channel_stats()
+if stats.empty:
+    st.info("저장된 데이터가 없습니다.")
+else:
+    st.dataframe(stats, width='stretch', hide_index=True)
+    chs = stats["판매처"].dropna().tolist()
+    if chs:
+        d1, d2 = st.columns([3, 1])
+        del_ch = d1.selectbox("삭제할 판매처", chs, key="del_ch")
+        if d2.button("🗑 이 판매처 삭제", key="del_btn"):
+            db.delete_channel(del_ch)
+            clear_cache()
+            st.success(f"'{del_ch}' 데이터를 삭제했습니다.")
+            st.rerun()
+    confirm = st.checkbox("⚠️ 모든 판매·반품 데이터를 지우려면 체크하세요", key="reset_confirm")
+    if st.button("🧹 전체 초기화", disabled=not confirm, key="reset_btn"):
+        db.reset_all_data()
+        clear_cache()
+        st.success("모든 데이터를 초기화했습니다. 다시 업로드해주세요.")
+        st.rerun()
+
+st.divider()
+st.subheader("3) 상품별 입고기간 · 최소재고")
 st.caption("입고기간(리드타임)을 넣으면 '판매속도 × 입고기간 > 재고'일 때 🔵재고부족으로 표시됩니다. "
            "최소재고를 넣으면 재고가 그 아래로 내려갈 때도 부족으로 표시됩니다. 빈칸은 기본값 사용.")
 

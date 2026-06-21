@@ -252,6 +252,39 @@ def list_channels():
     return sorted({r[0] for r in rows if r[0]})
 
 
+# ─────────────────────── 데이터 관리 (판매처별 현황·삭제) ───────────────────────
+
+def channel_stats():
+    """판매처별 현황: 판매행수·판매수량합·기간·반품행수."""
+    sales = _read(
+        "SELECT channel AS 판매처, COUNT(*) AS 판매행수, SUM(sold_qty) AS 판매수량합, "
+        "MIN(sale_date) AS 시작일, MAX(sale_date) AS 종료일 "
+        "FROM sales_daily GROUP BY channel", {})
+    rets = _read(
+        "SELECT channel AS 판매처, COUNT(*) AS 반품행수 FROM returns GROUP BY channel", {})
+    if sales.empty and rets.empty:
+        return pd.DataFrame()
+    out = sales.merge(rets, on="판매처", how="outer")
+    for c in ["판매행수", "판매수량합", "반품행수"]:
+        if c in out.columns:
+            out[c] = pd.to_numeric(out[c], errors="coerce").fillna(0).astype(int)
+    return out.sort_values("판매처")
+
+
+def delete_channel(channel):
+    """특정 판매처의 판매·스냅샷·반품 데이터 삭제."""
+    with get_engine().begin() as conn:
+        for t in ("sales_daily", "product_snapshot", "returns"):
+            conn.execute(text(f"DELETE FROM {t} WHERE channel = :c"), {"c": channel})
+
+
+def reset_all_data():
+    """모든 판매·스냅샷·반품 데이터 삭제 (설정·입고기간은 유지)."""
+    with get_engine().begin() as conn:
+        for t in ("sales_daily", "product_snapshot", "returns"):
+            conn.execute(text(f"DELETE FROM {t}"))
+
+
 def date_bounds(kind="all"):
     """저장된 데이터의 (최소날짜, 최대날짜). kind='sales'|'returns'|'all'."""
     if kind == "sales":
