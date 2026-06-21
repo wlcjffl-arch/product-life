@@ -89,11 +89,31 @@ if pick != "(선택)":
     by_opt = add_pct(by_opt, "반품수량")
     st.dataframe(by_opt, width='stretch', hide_index=True)
 
-    st.markdown("**옵션 × 사유** (어떤 옵션이 무슨 사유로 반품됐는지)")
-    ct = pd.crosstab(one["옵션"], one["reason"], values=one["qty"],
-                     aggfunc="sum", margins=True, margins_name="합계").fillna(0).astype(int)
-    ct = ct.sort_values("합계", ascending=False)
-    st.dataframe(ct.reset_index(), width='stretch')
+    st.markdown("**옵션 × 사유 (요약)** — 사유를 6개 그룹으로 묶어 한눈에. 색이 진할수록 반품 많음 "
+                "(🟪 1+ · 🟧 10+ · 🟥 20+).")
+    one_g = one.assign(사유그룹=one["reason"].map(report.classify))
+    ctg = (pd.crosstab(one_g["옵션"], one_g["사유그룹"], values=one_g["qty"], aggfunc="sum",
+                       margins=True, margins_name="합계").fillna(0).astype(int)
+           .sort_values("합계", ascending=False))
+
+    def _hl(v):
+        if v >= 20:
+            return "background-color:#F8C9C9"
+        if v >= 10:
+            return "background-color:#FCE2B5"
+        if v >= 1:
+            return "background-color:#EFEBFF"
+        return ""
+
+    sty = ctg.style
+    sty = (sty.map if hasattr(sty, "map") else sty.applymap)(_hl)
+    st.dataframe(sty, width='stretch')
+
+    with st.expander("사유 전체(원문) 교차표 보기"):
+        ct = (pd.crosstab(one["옵션"], one["reason"], values=one["qty"], aggfunc="sum",
+                          margins=True, margins_name="합계").fillna(0).astype(int)
+              .sort_values("합계", ascending=False))
+        st.dataframe(ct.reset_index(), width='stretch')
 
     # ── 자동 진단 & 액션 (화면 표시, 규칙기반) ──
     st.divider()
