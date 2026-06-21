@@ -90,20 +90,48 @@ if sel:
     pchart, pm, xlabel2 = period_chart(one, period2, height=300)
     st.altair_chart(pchart, use_container_width=True)
 
-    # 상품별 기간 판매 데이터 (일/주/월별 표)
-    st.markdown(f"**{period2}별 판매 데이터**")
-    tbl = pm[["bucket", "sold_qty", "inbound_qty", "pct_change", "flag"]].copy()
-    tbl["pct_change"] = tbl["pct_change"].apply(
+    # 판매 및 입고 데이터 (일/주/월별), 날짜 클릭 시 옵션별로 펼침
+    st.markdown("**판매 및 입고 데이터**")
+    base = (pm[["bucket", "sold_qty", "inbound_qty", "pct_change", "flag"]]
+            .sort_values("bucket", ascending=False).reset_index(drop=True))
+    disp = base.copy()
+    disp["pct_change"] = disp["pct_change"].apply(
         lambda x: f"{x * 100:+.0f}%" if pd.notna(x) else "-")
-    tbl = (tbl.sort_values("bucket", ascending=False)
-              .rename(columns={"bucket": xlabel2, "sold_qty": "판매수량",
-                               "inbound_qty": "입고수량", "pct_change": "직전대비",
-                               "flag": "신호"}))
-    st.dataframe(tbl, width='stretch', hide_index=True)
+    disp = disp.rename(columns={"bucket": xlabel2, "sold_qty": "판매수량",
+                                "inbound_qty": "입고수량", "pct_change": "직전대비",
+                                "flag": "신호"})
+    pev = st.dataframe(disp, width='stretch', hide_index=True,
+                       on_select="rerun", selection_mode="single-row", key="pm_table")
     st.download_button(
-        "⬇️ 이 상품 판매데이터 내려받기(CSV)",
-        tbl.to_csv(index=False).encode("utf-8-sig"),
-        file_name=f"{code}_{period2}별_판매데이터.csv", mime="text/csv")
+        "⬇️ 이 상품 판매·입고 데이터 내려받기(CSV)",
+        disp.to_csv(index=False).encode("utf-8-sig"),
+        file_name=f"{code}_{period2}별_판매입고.csv", mime="text/csv")
+    st.caption("💡 위 표에서 **날짜(행)를 클릭**하면 그 기간의 **옵션별 판매·입고**가 아래에 펼쳐집니다.")
+
+    try:
+        prows = list(pev.selection.rows)
+    except Exception:
+        prows = []
+    if prows:
+        bkt = base.iloc[prows[0]]["bucket"]
+        d = pd.to_datetime(one["sale_date"], errors="coerce")
+        if period2 == "월":
+            mask = one["sale_date"].astype(str).str.startswith(bkt)
+        elif period2 == "주":
+            start_d = pd.to_datetime(bkt)
+            mask = (d >= start_d) & (d <= start_d + pd.Timedelta(days=6))
+        else:
+            mask = one["sale_date"] == bkt
+        sub = (one[mask].groupby("option_name", as_index=False)
+                        .agg(판매수량=("sold_qty", "sum"), 입고수량=("inbound_qty", "sum")))
+        sub = sub[(sub["판매수량"] != 0) | (sub["입고수량"] != 0)].sort_values(
+            "판매수량", ascending=False)
+        st.markdown(f"#### 📅 {bkt} — 옵션별 판매·입고")
+        if sub.empty:
+            st.caption("이 기간에 움직임이 없습니다.")
+        else:
+            st.dataframe(sub.rename(columns={"option_name": "옵션"}),
+                         width='stretch', hide_index=True)
 
 st.divider()
 st.subheader("상품별 판매 순위")
