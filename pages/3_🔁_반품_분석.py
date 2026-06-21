@@ -95,10 +95,35 @@ if pick != "(선택)":
     ct = ct.sort_values("합계", ascending=False)
     st.dataframe(ct.reset_index(), width='stretch')
 
-    # ── Word 보고서 (내부 공유용, 규칙기반) ──
+    # ── 자동 진단 & 액션 (화면 표시, 규칙기반) ──
     st.divider()
-    st.markdown("**📄 보고서 내려받기 (Word · 내부 공유용)**")
-    st.caption("선택한 상품 기준으로 진단·액션이 담긴 Word 보고서를 만듭니다.")
+    st.markdown("### 📋 자동 진단 & 액션")
+    diag = report.diagnose(one, top=4)
+    if diag:
+        for g, d, act, cnt in diag:
+            st.markdown(f"- **[{g}]** {d} ({cnt:,}건) → {act}")
+    else:
+        st.caption("진단할 주요 사유가 없습니다.")
+
+    ac1, ac2 = st.columns(2)
+    ac1.markdown("**액션 우선순위**")
+    ap = pd.DataFrame(report.action_priorities(one),
+                      columns=["우선순위", "항목", "권장 조치", "건수"])
+    ac1.dataframe(ap, width='stretch', hide_index=True)
+    ac2.markdown("**5단계 액션 플랜**")
+    ac2.dataframe(pd.DataFrame(report.ACTION_PLAN, columns=["단계", "내용"]),
+                  width='stretch', hide_index=True)
+
+    with st.expander("사이즈별 진단 보기"):
+        sd = report.size_diagnosis(one)
+        if sd:
+            for sz, cnt, reason, act in sd:
+                st.markdown(f"- **{sz}** {cnt:,}건 · 주요 사유 '{reason}' → {act}")
+        else:
+            st.caption("사이즈 데이터가 없습니다.")
+
+    # ── Word 보고서 (내부 공유용) ──
+    st.markdown("**📄 보고서 내려받기 (Word · 위 내용과 동일)**")
     pname = (one["product_name"].dropna().iloc[0]
              if one["product_name"].notna().any() else pick.split(" [")[0])
     rc1, rc2 = st.columns(2)

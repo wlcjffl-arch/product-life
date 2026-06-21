@@ -1,8 +1,7 @@
-"""반품 분석 Word(.docx) 보고서 생성 — 규칙기반(외부 AI 미사용).
+"""반품 분석 진단·보고서 — 규칙기반(외부 AI 미사용).
 
-선택한 상품 단위로 2종:
-- build_reason_report : 반품 사유별 표 + 진단 + 액션 우선순위
-- build_size_report   : 사이즈 × 사유 교차표(10/20건 강조) + 사이즈별 진단 + 5단계 액션
+진단/액션 로직(diagnose·size_diagnosis·action_priorities·ACTION_PLAN)을 함수로 분리해
+화면 표시와 Word(.docx) 보고서가 같은 내용을 쓰도록 함.
 입력 df 컬럼: reason, qty, 사이즈, (product_name)
 """
 import io
@@ -34,6 +33,13 @@ GROUPS = {
               "단순 변심 반품입니다.",
               "구매 전 정보 제공 강화(직접 개선은 제한적)"),
 }
+ACTION_PLAN = [
+    ("1. 진단", "반품 사유·사이즈 집중 구간 파악 (본 분석)"),
+    ("2. 상세페이지", "실측 사이즈표·핏 안내·실물컷 보강"),
+    ("3. 검수", "입고 검수 및 소재(두께·비침) 정보 표기 강화"),
+    ("4. CS", "반품 사유 태깅·반복 항목 주간 모니터링"),
+    ("5. 재발방지", "상위 사유 개선 후 반품율 추적·검증"),
+]
 RED, ORANGE, INDIGO = "F8C9C9", "FCE2B5", "4F46E5"
 
 
@@ -45,6 +51,46 @@ def classify(reason):
     return "기타"
 
 
+def _group_sums(df):
+    g = df.copy()
+    g["_g"] = g["reason"].map(classify)
+    return g.groupby("_g")["qty"].sum().sort_values(ascending=False)
+
+
+# ─────────────────────── 진단·액션 (화면·문서 공용) ───────────────────────
+
+def diagnose(df, top=4):
+    """[(그룹, 진단문장, 조치, 건수), ...] (건수 많은 순)."""
+    out = []
+    for g, cnt in _group_sums(df).items():
+        if g in GROUPS:
+            out.append((g, GROUPS[g][1], GROUPS[g][2], int(cnt)))
+    return out[:top]
+
+
+def action_priorities(df, top=5):
+    """[(순위, 그룹, 조치, 건수), ...]."""
+    rows = []
+    for i, (g, cnt) in enumerate(_group_sums(df).head(top).items(), 1):
+        act = GROUPS.get(g, (None, None, "개별 모니터링"))[2]
+        rows.append((i, g, act, int(cnt)))
+    return rows
+
+
+def size_diagnosis(df, top=8):
+    """[(사이즈, 건수, 주요사유, 조치), ...]."""
+    out = []
+    for sz, cnt in df.groupby("사이즈")["qty"].sum().sort_values(ascending=False).head(top).items():
+        sub = df[df["사이즈"] == sz]
+        topr = sub.groupby("reason")["qty"].sum().sort_values(ascending=False)
+        reason = topr.index[0] if len(topr) else "-"
+        act = GROUPS.get(classify(reason), (None, None, "개별 점검"))[2]
+        out.append((str(sz), int(cnt), str(reason), act))
+    return out
+
+
+# ─────────────────────────── Word(.docx) 생성 ───────────────────────────
+
 def _shade(cell, color):
     tcPr = cell._tc.get_or_add_tcPr()
     shd = OxmlElement("w:shd")
@@ -54,8 +100,8 @@ def _shade(cell, color):
 
 def _set(cell, text, *, header=False, shade=None):
     cell.text = str(text)
-    run = cell.paragraphs[0].runs[0] if cell.paragraphs[0].runs else \
-        cell.paragraphs[0].add_run("")
+    p = cell.paragraphs[0]
+    run = p.runs[0] if p.runs else p.add_run("")
     run.font.size = Pt(9)
     if header:
         run.font.bold = True
@@ -73,17 +119,14 @@ def _table(doc, headers):
     return t
 
 
+def _cell_shade(v):
+    return RED if v >= 20 else ORANGE if v >= 10 else None
+
+
 def _save(doc):
     buf = io.BytesIO()
     doc.save(buf)
-    buf.seek(0)
     return buf.getvalue()
-
-
-def _group_sums(df):
-    g = df.copy()
-    g["_g"] = g["reason"].map(classify)
-    return g.groupby("_g")["qty"].sum().sort_values(ascending=False)
 
 
 def build_reason_report(product_name, df):
@@ -101,24 +144,18 @@ def build_reason_report(product_name, df):
         cnt = int(r["건수"])
         c = t.add_row().cells
         _set(c[0], r["reason"])
-        _set(c[1], f"{cnt:,}", shade=(RED if cnt >= 20 else ORANGE if cnt >= 10 else None))
+        _set(c[1], f"{cnt:,}", shade=_cell_shade(cnt))
         _set(c[2], f"{cnt / total * 100:.1f}%" if total else "-")
 
     doc.add_heading("진단 코멘트", level=2)
-    gsum = _group_sums(df)
-    for g, cnt in gsum.head(3).items():
-        if g in GROUPS:
-            _, diag, act = GROUPS[g]
-            doc.add_paragraph(f"[{g}] {diag} ({int(cnt):,}건) → {act}", style="List Bullet")
-    if (gsum.index == "기타").any():
-        doc.add_paragraph("[기타] 분류되지 않은 사유는 개별 검토가 필요합니다.", style="List Bullet")
+    for g, diag, act, cnt in diagnose(df, top=4):
+        doc.add_paragraph(f"[{g}] {diag} ({cnt:,}건) → {act}", style="List Bullet")
 
     doc.add_heading("액션 우선순위", level=2)
-    at = _table(doc, ["우선순위", "항목", "권장 조치"])
-    for i, (g, _cnt) in enumerate(gsum.head(5).items(), 1):
-        act = GROUPS.get(g, (None, None, "개별 모니터링"))[2]
+    at = _table(doc, ["우선순위", "항목", "권장 조치", "건수"])
+    for i, g, act, cnt in action_priorities(df):
         c = at.add_row().cells
-        _set(c[0], i); _set(c[1], g); _set(c[2], act)
+        _set(c[0], i); _set(c[1], g); _set(c[2], act); _set(c[3], f"{cnt:,}")
     return _save(doc)
 
 
@@ -138,30 +175,17 @@ def build_size_report(product_name, df):
         _set(cells[0], idx, header=(idx == "합계"))
         for i, c in enumerate(cols, 1):
             v = int(row[c])
-            _set(cells[i], f"{v:,}" if v else "-",
-                 shade=(RED if v >= 20 else ORANGE if v >= 10 else None))
+            _set(cells[i], f"{v:,}" if v else "-", shade=_cell_shade(v))
     doc.add_paragraph("※ 10건 이상 주황, 20건 이상 빨강으로 강조했습니다.")
 
     doc.add_heading("사이즈별 진단", level=2)
-    by_size = df.groupby("사이즈")["qty"].sum().sort_values(ascending=False)
-    for sz, cnt in by_size.head(8).items():
-        sub = df[df["사이즈"] == sz]
-        topr = sub.groupby("reason")["qty"].sum().sort_values(ascending=False)
-        reason = topr.index[0] if len(topr) else "-"
-        act = GROUPS.get(classify(reason), (None, None, "개별 점검"))[2]
-        doc.add_paragraph(f"[{sz}] {int(cnt):,}건 · 주요 사유 '{reason}' → {act}",
+    for sz, cnt, reason, act in size_diagnosis(df):
+        doc.add_paragraph(f"[{sz}] {cnt:,}건 · 주요 사유 '{reason}' → {act}",
                           style="List Bullet")
 
     doc.add_heading("액션 플랜 (5단계)", level=2)
-    steps = [
-        ("1. 진단", "반품 사유·사이즈 집중 구간 파악 (본 보고서)"),
-        ("2. 상세페이지", "실측 사이즈표·핏 안내·실물컷 보강"),
-        ("3. 검수", "입고 검수 및 소재(두께·비침) 정보 표기 강화"),
-        ("4. CS", "반품 사유 태깅·반복 항목 주간 모니터링"),
-        ("5. 재발방지", "상위 사유 개선 후 반품율 추적·검증"),
-    ]
     at = _table(doc, ["단계", "내용"])
-    for s, d in steps:
+    for s, d in ACTION_PLAN:
         c = at.add_row().cells
         _set(c[0], s); _set(c[1], d)
     return _save(doc)
