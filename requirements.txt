@@ -5,3 +5,4 @@ charset-normalizer>=3.3
 altair>=5.0
 SQLAlchemy>=2.0
 psycopg2-binary>=2.9
+python-docx>=1.1

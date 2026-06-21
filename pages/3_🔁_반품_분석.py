@@ -3,7 +3,7 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
-from core import db, ingest
+from core import db, ingest, report
 from core.ui import setup_page, sidebar_filters, cached
 
 setup_page("반품 분석", "🔁")
@@ -94,6 +94,24 @@ if pick != "(선택)":
                      aggfunc="sum", margins=True, margins_name="합계").fillna(0).astype(int)
     ct = ct.sort_values("합계", ascending=False)
     st.dataframe(ct.reset_index(), width='stretch')
+
+    # ── Word 보고서 (내부 공유용, 규칙기반) ──
+    st.divider()
+    st.markdown("**📄 보고서 내려받기 (Word · 내부 공유용)**")
+    st.caption("선택한 상품 기준으로 진단·액션이 담긴 Word 보고서를 만듭니다.")
+    pname = (one["product_name"].dropna().iloc[0]
+             if one["product_name"].notna().any() else pick.split(" [")[0])
+    rc1, rc2 = st.columns(2)
+    rc1.download_button(
+        "📄 상품별 분석 (.docx)", report.build_reason_report(pname, one),
+        file_name=f"반품현황분석_상품별_{code}.docx",
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        key="rep_reason")
+    rc2.download_button(
+        "📄 사이즈별 분석 (.docx)", report.build_size_report(pname, one),
+        file_name=f"반품현황분석_사이즈별_{code}.docx",
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        key="rep_size")
 
 st.divider()
 with st.expander("반품 원본 내역 보기"):
