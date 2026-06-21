@@ -90,15 +90,37 @@ def setup_page(title, icon):
     st.markdown(_CSS, unsafe_allow_html=True)
 
 
+# ─── 세션 캐시: 같은 조건의 DB 조회 결과를 세션 동안 기억(속도 개선) ───
+
+def ensure_db():
+    """테이블 생성(init)은 세션당 한 번만."""
+    if not st.session_state.get("_db_ready"):
+        db.init_db()
+        st.session_state["_db_ready"] = True
+
+
+def cached(key, loader):
+    """key가 처음이면 loader()를 호출해 저장, 이후엔 저장된 값 반환."""
+    cache = st.session_state.setdefault("_dcache", {})
+    if key not in cache:
+        cache[key] = loader()
+    return cache[key]
+
+
+def clear_cache():
+    """업로드·설정 저장 후 호출 — 캐시 비우기."""
+    st.session_state["_dcache"] = {}
+
+
 def sidebar_filters(kind="all"):
-    db.init_db()
+    ensure_db()
     st.sidebar.header("🔎 조회 조건")
 
-    channels = ["전체"] + db.list_channels()
+    channels = ["전체"] + cached(("channels",), db.list_channels)
     channel = st.sidebar.selectbox("판매처", channels, key="flt_channel")
 
     label = _LABEL.get(kind, "데이터")
-    lo, hi = db.date_bounds(kind)
+    lo, hi = cached(("bounds", kind), lambda: db.date_bounds(kind))
     if not lo:
         st.sidebar.caption(f"{label}: 아직 없음")
         return channel, None, None

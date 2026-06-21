@@ -2,10 +2,10 @@
 import streamlit as st
 
 from core import db
-from core.ui import setup_page
+from core.ui import setup_page, ensure_db, cached
 
 setup_page("상품 판매·반품 분석", "📊")
-db.init_db()
+ensure_db()
 
 st.markdown(
     '<div class="pl-hero">'
@@ -15,8 +15,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-lo, hi = db.date_bounds()
-channels = db.list_channels()
+lo, hi = cached(("bounds", "all"), lambda: db.date_bounds())
+channels = cached(("channels",), db.list_channels)
 
 c1, c2, c3 = st.columns(3)
 c1.metric("🏬 등록된 판매처", f"{len(channels)} 곳")

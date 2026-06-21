@@ -3,13 +3,13 @@ import pandas as pd
 import streamlit as st
 
 from core import analytics, config, db
-from core.ui import setup_page
+from core.ui import setup_page, ensure_db, cached, clear_cache
 
 setup_page("설정", "⚙️")
-db.init_db()
+ensure_db()
 st.title("⚙️ 설정")
 
-saved = db.load_settings()
+saved = cached(("settings",), db.load_settings)
 s = analytics.resolve_settings(saved)
 
 st.subheader("1) 판단 기준값")
@@ -36,6 +36,7 @@ with st.form("thresholds"):
             "low_sales_return_rate": lsr / 100, "spike_pct": sp / 100, "drop_pct": dp / 100,
             "default_lead_time_days": lead, "velocity_window_days": vel,
         })
+        clear_cache()
         st.success("저장했습니다.")
 
 st.divider()
@@ -43,7 +44,7 @@ st.subheader("2) 상품별 입고기간 · 최소재고")
 st.caption("입고기간(리드타임)을 넣으면 '판매속도 × 입고기간 > 재고'일 때 🔵재고부족으로 표시됩니다. "
            "최소재고를 넣으면 재고가 그 아래로 내려갈 때도 부족으로 표시됩니다. 빈칸은 기본값 사용.")
 
-snap = db.load_snapshot()
+snap = cached(("snapshot", None), lambda: db.load_snapshot())
 if snap.empty:
     st.info("먼저 판매 분석 파일을 업로드하면 상품 목록이 나타납니다.")
     st.stop()
@@ -51,7 +52,7 @@ if snap.empty:
 products = (snap.groupby("product_code", as_index=False)
                 .agg(product_name=("product_name", "first"),
                      stock=("stock", "sum")))
-rs = db.load_restock_settings()
+rs = cached(("restock",), db.load_restock_settings)
 tbl = products.merge(rs, on="product_code", how="left")
 tbl = tbl.rename(columns={"product_code": "상품코드", "product_name": "상품명",
                           "stock": "현재재고", "lead_time_days": "입고기간(일)",
@@ -72,4 +73,5 @@ if st.button("💾 입고기간/최소재고 저장", type="primary"):
         ["product_code", "lead_time_days", "min_stock"]]
     out = out[out["lead_time_days"].notna() | out["min_stock"].notna()]
     db.save_restock_settings(out)
+    clear_cache()
     st.success(f"{len(out):,}개 상품 설정을 저장했습니다.")

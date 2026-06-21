@@ -2,18 +2,18 @@
 import streamlit as st
 
 from core import analytics, db
-from core.ui import setup_page, sidebar_filters
+from core.ui import setup_page, sidebar_filters, cached
 
 setup_page("상품 상태 / 알림", "🚦")
 st.title("🚦 상품 상태 / 알림")
 st.caption("판매 분석 파일로 만들어집니다. ※ 반품수·반품율은 판매 파일의 **취소수량** 기준입니다.")
 
 channel, start, end = sidebar_filters("all")
-settings = db.load_settings()
-
-sales = db.load_sales_daily(channel, start, end)
-snapshot = db.load_snapshot(channel)
-restock = db.load_restock_settings()
+settings = cached(("settings",), db.load_settings)
+sales = cached(("sales", channel, start, end),
+               lambda: db.load_sales_daily(channel, start, end))
+snapshot = cached(("snapshot", channel), lambda: db.load_snapshot(channel))
+restock = cached(("restock",), db.load_restock_settings)
 
 if snapshot.empty:
     st.info("상품 데이터가 없습니다. 먼저 **📥 데이터 업로드 → 판매 분석 파일**을 올려주세요.")
