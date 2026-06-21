@@ -21,6 +21,15 @@ html, body, .stApp, [data-testid="stSidebar"], button, input, textarea, select, 
 }
 .block-container {padding-top: 2rem; padding-bottom: 3rem; max-width: 1240px;}
 footer {visibility: hidden;}
+
+/* 글자 마우스로 긁어 복사 가능하게 */
+[data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] *,
+[data-testid="stHeading"], [data-testid="stHeading"] *,
+[data-testid="stMetricValue"], [data-testid="stMetricLabel"],
+[data-testid="stCaptionContainer"], table, th, td, .pl-hero, .pl-hero *, .pl-card, .pl-card * {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+}
 h1 {font-weight: 800; letter-spacing: -0.8px;}
 h2, h3 {font-weight: 700; letter-spacing: -0.4px;}
 
