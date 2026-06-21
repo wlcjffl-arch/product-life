@@ -31,10 +31,23 @@ def _db_url():
             url = None
     if url:
         url = str(url).strip()
-        # Supabase/Heroku 형식 → SQLAlchemy(psycopg2) 형식으로 정규화
         if url.startswith("postgres://"):
-            url = "postgresql+psycopg2://" + url[len("postgres://"):]
-        elif url.startswith("postgresql://"):
+            url = "postgresql://" + url[len("postgres://"):]
+        # 비밀번호의 대괄호 제거 + 특수문자(!, @ 등) 안전 인코딩
+        try:
+            from urllib.parse import quote, urlsplit, urlunsplit
+            p = urlsplit(url)
+            if p.password is not None:
+                pw = p.password
+                if pw.startswith("[") and pw.endswith("]"):
+                    pw = pw[1:-1]
+                netloc = f"{quote(p.username or '', safe='')}:{quote(pw, safe='')}@{p.hostname}"
+                if p.port:
+                    netloc += f":{p.port}"
+                url = urlunsplit((p.scheme, netloc, p.path, p.query, p.fragment))
+        except Exception:
+            pass
+        if url.startswith("postgresql://"):
             url = "postgresql+psycopg2://" + url[len("postgresql://"):]
         return url
     os.makedirs(DB_DIR, exist_ok=True)
