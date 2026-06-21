@@ -241,25 +241,14 @@ def stock_alerts(sales_df, snapshot_df, restock_df, asof_date, settings=None):
 # ─────────────────────── 통합 알림 (페이지4) ───────────────────────
 
 def alert_overview(sales_df, returns_df, snapshot_df, restock_df, asof_date, settings=None):
-    """상품 상태 알림 통합 표 (옵션 단위)."""
-    rr = return_rate_option(sales_df, returns_df, settings)
-    st = stock_alerts(sales_df, snapshot_df, restock_df, asof_date, settings)
-    if st.empty:
+    """상품 상태 알림 통합 표 (옵션 단위). 판매 파일만으로 계산.
+
+    반품수 = 판매 파일의 '취소수량', 반품율 = 취소수량 / 판매합계수량.
+    (returns_df 는 사용하지 않음 — 반품 파일은 반품 분석 페이지 전용)"""
+    stk = stock_alerts(sales_df, snapshot_df, restock_df, asof_date, settings)
+    if stk.empty:
         return pd.DataFrame()
-
-    st = st.copy()
-    st["opt_key"] = st["option_name"].map(normalize_option)
-    rr = rr.copy()
-    if not rr.empty:
-        rr["opt_key"] = rr["option_name"].map(normalize_option)
-        rr_small = rr[["channel", "product_code", "opt_key", "ret_qty",
-                       "return_rate", "high_return"]]
-    else:
-        rr_small = pd.DataFrame(columns=["channel", "product_code", "opt_key",
-                                         "ret_qty", "return_rate", "high_return"])
-
-    df = st.merge(rr_small, on=["channel", "product_code", "opt_key"], how="left")
-    df["ret_qty"] = df["ret_qty"].fillna(0).astype(int)
+    df = stk.copy()
     s = resolve_settings(settings)
 
     sold_total = (sales_df.groupby(["channel", "product_code", "option_name"], as_index=False)
@@ -268,6 +257,16 @@ def alert_overview(sales_df, returns_df, snapshot_df, restock_df, asof_date, set
     df = df.merge(sold_total, on=["channel", "product_code", "option_name"], how="left")
     df["period_sold"] = df["period_sold"].fillna(0).astype(int)
 
+    # 반품수 = 취소수량(판매 파일), 반품율 = 취소수량 / 판매합계수량
+    canceled = (pd.to_numeric(df["canceled"], errors="coerce")
+                if "canceled" in df.columns else pd.Series(0, index=df.index))
+    df["ret_qty"] = canceled.fillna(0).astype(int)
+    total_sold = (pd.to_numeric(df["total_sold"], errors="coerce")
+                  if "total_sold" in df.columns else pd.Series(0, index=df.index)).fillna(0)
+    df["return_rate"] = [(q / d) if d > 0 else None
+                         for q, d in zip(df["ret_qty"], total_sold)]
+    df["high_return"] = df["return_rate"].apply(
+        lambda x: x is not None and x >= s["return_rate_flag"])
     df["low_sales_high_return"] = df.apply(
         lambda r: (r["period_sold"] <= s["low_sales_qty"]
                    and pd.notna(r["return_rate"])

@@ -77,15 +77,16 @@ def test_stock_alerts_shortage_and_nosale():
     assert bool(row["no_sale_flag"]) is True     # 마지막판매 06-11, asof 06-20 → 9일
 
 
-def test_alert_overview_runs():
+def test_alert_overview_uses_canceled_as_returns():
+    # 반품수=취소수량, 반품율=취소수량/판매합계수량 (반품 파일 없이 판매 파일만으로)
     sales = _sales([["퀸잇", "100", "A", "블랙,M", "2026-06-13", 10, 0]])
-    returns = pd.DataFrame([
-        ["퀸잇", "100", "A", "블랙 / M", "2026-06-14", 3, "사이즈", "", "", 0, "O1"]],
-        columns=["channel", "product_code", "product_name", "option_name", "return_date",
-                 "qty", "reason", "cs_type", "supplier", "amount", "order_no"])
     snapshot = pd.DataFrame([{
         "channel": "퀸잇", "product_code": "100", "option_name": "블랙,M",
-        "product_name": "A", "stock": 5, "category": "상의"}])
-    ov = analytics.alert_overview(sales, returns, snapshot, pd.DataFrame(), "2026-06-20")
+        "product_name": "A", "stock": 5, "category": "상의",
+        "total_sold": 10, "canceled": 3}])   # 취소 3 / 판매 10 = 30%
+    ov = analytics.alert_overview(sales, None, snapshot, pd.DataFrame(), "2026-06-20")
     assert not ov.empty
-    assert "🔴반품율" in ov.iloc[0]["알림"]
+    row = ov.iloc[0]
+    assert row["ret_qty"] == 3
+    assert abs(row["return_rate"] - 0.3) < 1e-9
+    assert "🔴반품율" in row["알림"]
