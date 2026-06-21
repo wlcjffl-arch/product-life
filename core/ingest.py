@@ -136,6 +136,20 @@ def _norm_size(sz):
     return sz
 
 
+_PAREN_EN = re.compile(r"\(\s*[A-Za-z][^)]*\)")   # 영문 괄호 (Black), (Ivory) …
+_NUM_PREFIX = re.compile(r"^\s*\d+\s*[.)]\s*")     # 앞 번호  "2." "1)"
+_QTY_PAREN = re.compile(r"\(\s*\d+\s*개?\s*\)|\d+\s*개")  # (5개), 3개
+
+
+def _clean_color(c):
+    """색상명 정제: 영문 번역괄호·앞번호·수량 제거 → 같은 색끼리 묶이게.
+    (한글 세부 괄호 '베이지(살구)' 는 다른 색이라 유지)"""
+    c = _PAREN_EN.sub("", str(c))
+    c = _QTY_PAREN.sub("", c)
+    c = _NUM_PREFIX.sub("", c)
+    return re.sub(r"\s+", " ", c).strip()
+
+
 def parse_option(s):
     """옵션 표기에서 (색상, 사이즈)를 뽑아낸다. 형태가 달라도 통일.
 
@@ -151,8 +165,20 @@ def parse_option(s):
     # 1) 라벨이 있으면 그대로 신뢰 (수량 잡음만 제거)
     mc, ms = _LABEL_COLOR.search(s), _LABEL_SIZE.search(s)
     if mc or ms:
-        color = _OPT_JUNK.sub("", mc.group(1)).strip() if mc else ""
-        return (color, _norm_size(ms.group(1) if ms else ""))
+        color = _clean_color(_OPT_JUNK.sub("", mc.group(1))) if mc else ""
+        size = _norm_size(ms.group(1)) if ms else ""
+        if not (color and size):
+            # 라벨 붙은 부분 떼고 남은 토큰에서 빠진 쪽(색상/사이즈) 보충
+            rest = s
+            for m in (mc, ms):
+                if m:
+                    rest = rest.replace(m.group(0), " ")
+            for t in (x.strip() for x in _OPT_SPLIT.split(_OPT_JUNK.sub(" ", rest)) if x.strip()):
+                if not size and _SIZE_TOKEN.match(t):
+                    size = _norm_size(t)
+                elif not color and not _SIZE_TOKEN.match(t):
+                    color = _clean_color(t)
+        return (color, size)
 
     # 2) 라벨 없음 → 잡음 제거 후 토큰화
     s2 = _OPT_JUNK.sub(" ", s)
@@ -173,7 +199,7 @@ def parse_option(s):
         color, size = parts[0], parts[-1]
     else:
         color, size = parts[0], ""
-    return (color.strip(), _norm_size(size))
+    return (_clean_color(color), _norm_size(size))
 
 
 def normalize_option(s):

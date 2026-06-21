@@ -39,6 +39,14 @@ def test_normalize_option():
     assert normalize_option("브라운,66") == "브라운 / 66"
     # 라벨이 아닌 색상명은 보존 (곤색이 사라지지 않아야 함)
     assert "곤색" in normalize_option("곤색:XXL/1개")
+    # 영문 번역괄호·앞번호·수량 정제 → 같은 색끼리 묶임
+    assert normalize_option("검정(Black)") == normalize_option("검정") == "검정"
+    assert normalize_option("2.먹색") == normalize_option("먹색") == "먹색"
+    assert normalize_option("색상=베이지(5개)") == "베이지"
+    # 한글 세부 괄호는 다른 색으로 유지
+    assert normalize_option("베이지(살구)") != normalize_option("베이지")
+    # 색상 라벨 + 라벨없는 사이즈 혼합도 보충
+    assert normalize_option("색상=흰색(white)/M") == "흰색 / M"
 
 
 def test_find_date_cols():
