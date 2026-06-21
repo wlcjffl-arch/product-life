@@ -1,4 +1,6 @@
 """판매 흐름 페이지."""
+from urllib.parse import quote
+
 import altair as alt
 import pandas as pd
 import streamlit as st
@@ -8,6 +10,28 @@ from core.ui import setup_page, sidebar_filters, cached
 
 setup_page("판매 흐름", "📈")
 st.title("📈 판매 흐름")
+
+MALL = "https://dedra.co.kr"   # 쇼핑몰 주소 (상품 검색 링크용)
+_QTY = {"총판매수", "입고수량", "현재재고", "미발송수", "취소수량", "판매수량"}
+_MONEY = {"원가", "판매단가", "매출액"}
+_PCT = {"수익율", "취소율"}
+
+
+def num_config(df, extra=None):
+    """숫자 컬럼에 천 단위 콤마(localized)/퍼센트 서식 적용한 column_config."""
+    cfg = dict(extra or {})
+    for c in df.columns:
+        if c in _PCT:
+            cfg[c] = st.column_config.NumberColumn(format="%.1f%%")
+        elif c in _QTY or c in _MONEY:
+            cfg[c] = st.column_config.NumberColumn(format="localized")
+    return cfg
+
+
+def mall_link(name):
+    """상품명으로 쇼핑몰 검색 링크 생성(대괄호 접두사 제거)."""
+    n = str(name or "").split("]")[-1].strip()
+    return f"{MALL}/product/search.html?keyword={quote(n)}" if n else None
 
 channel, start, end = sidebar_filters("sales")
 settings = cached(("settings",), db.load_settings)
@@ -101,6 +125,7 @@ if sel:
                                 "inbound_qty": "입고수량", "pct_change": "직전대비",
                                 "flag": "신호"})
     pev = st.dataframe(disp, width='stretch', hide_index=True,
+                       column_config=num_config(disp),
                        on_select="rerun", selection_mode="single-row", key="pm_table")
     st.download_button(
         "⬇️ 이 상품 판매·입고 데이터 내려받기(CSV)",
@@ -130,8 +155,9 @@ if sel:
         if sub.empty:
             st.caption("이 기간에 움직임이 없습니다.")
         else:
-            st.dataframe(sub.rename(columns={"option_name": "옵션"}),
-                         width='stretch', hide_index=True)
+            sub = sub.rename(columns={"option_name": "옵션"})
+            st.dataframe(sub, width='stretch', hide_index=True,
+                         column_config=num_config(sub))
 
 st.divider()
 st.subheader("상품별 판매 순위")
@@ -170,9 +196,10 @@ for c in ["원가", "판매단가", "매출액"]:
     rank[c] = pd.to_numeric(rank[c], errors="coerce").round(0)
 
 rank = rank.rename(columns={"product_name": "상품명", "product_code": "상품코드"})
-# 관련도 순 컬럼 배치: 식별 → 공급처 → 판매/재고 수량 → 금액/수익 → 등록일
-order = ["상품명", "상품코드", "공급처", "총판매수", "입고수량", "현재재고", "미발송수",
-         "취소수량", "취소율", "원가", "판매단가", "매출액", "수익율", "등록일자"]
+rank["홈페이지"] = rank["상품명"].map(mall_link)
+# 관련도 순 컬럼 배치: 식별 → 홈페이지 → 공급처 → 수량 → 금액/수익 → 등록일
+order = ["상품명", "상품코드", "홈페이지", "공급처", "총판매수", "입고수량", "현재재고",
+         "미발송수", "취소수량", "취소율", "원가", "판매단가", "매출액", "수익율", "등록일자"]
 rank = rank[[c for c in order if c in rank.columns]].reset_index(drop=True)
 
 # 정렬 컨트롤 (각 컬럼 오름/내림차순)
@@ -184,16 +211,11 @@ direction = sc2.radio("정렬 방향", ["내림차순", "오름차순"], horizon
 rank = rank.sort_values(sort_by, ascending=(direction == "오름차순"),
                         na_position="last").reset_index(drop=True)
 
-MONEY_CFG = {
-    "원가": st.column_config.NumberColumn(format="%d원"),
-    "판매단가": st.column_config.NumberColumn(format="%d원"),
-    "매출액": st.column_config.NumberColumn(format="%d원"),
-    "수익율": st.column_config.NumberColumn(format="%.1f%%"),
-    "취소율": st.column_config.NumberColumn(format="%.1f%%"),
-}
-event = st.dataframe(rank, width='stretch', hide_index=True, column_config=MONEY_CFG,
+link_cfg = {"홈페이지": st.column_config.LinkColumn("홈페이지", display_text="🔗 보기")}
+event = st.dataframe(rank, width='stretch', hide_index=True,
+                     column_config=num_config(rank, link_cfg),
                      on_select="rerun", selection_mode="single-row", key="rank_table")
-st.caption("💡 **상품 행을 클릭**하면 아래에 그 상품의 **옵션별** 내역이 펼쳐집니다. "
+st.caption("💡 **상품 행을 클릭**하면 옵션별 내역이 펼쳐지고, **🔗 보기**를 누르면 쇼핑몰에서 그 상품을 찾습니다. "
            "(열 제목 클릭으로 정렬도 됩니다.)")
 
 # ── 선택한 상품의 옵션별 펼쳐보기 ──
@@ -211,17 +233,25 @@ if sel_rows:
     if not snap.empty:
         osnap = (snap[snap["product_code"] == code]
                  .groupby("option_name", as_index=False)
-                 .agg(판매단가=("sale_price", "mean"), 매출액=("amount", "sum"),
-                      현재재고=("stock", "sum"), 미발송수=("unshipped", "sum"),
-                      취소수량=("canceled", "sum")))
+                 .agg(원가=("cost", "mean"), 판매단가=("sale_price", "mean"),
+                      매출액=("amount", "sum"), 현재재고=("stock", "sum"),
+                      미발송수=("unshipped", "sum"), 취소수량=("canceled", "sum")))
         od = od.merge(osnap, on="option_name", how="outer")
     for c in ["총판매수", "입고수량", "현재재고", "미발송수", "취소수량"]:
         if c in od.columns:
             od[c] = pd.to_numeric(od[c], errors="coerce").fillna(0).astype(int)
-    for c in ["판매단가", "매출액"]:
+    # 파생 지표 (순위표와 동일 컬럼)
+    if "판매단가" in od.columns and "원가" in od.columns:
+        od["수익율"] = ((od["판매단가"] - od["원가"]) / od["판매단가"] * 100).round(1)
+    if "취소수량" in od.columns:
+        d = od["총판매수"] + od["취소수량"].fillna(0)
+        od["취소율"] = (od["취소수량"].fillna(0) / d.replace(0, pd.NA) * 100).round(1)
+    for c in ["원가", "판매단가", "매출액"]:
         if c in od.columns:
             od[c] = pd.to_numeric(od[c], errors="coerce").round(0)
-    od = od.rename(columns={"option_name": "옵션"}).sort_values("총판매수", ascending=False)
-    st.dataframe(od, width='stretch', hide_index=True,
-                 column_config={k: v for k, v in MONEY_CFG.items() if k in od.columns})
+    od = od.rename(columns={"option_name": "옵션"})
+    oorder = ["옵션", "총판매수", "입고수량", "현재재고", "미발송수", "취소수량",
+              "취소율", "원가", "판매단가", "매출액", "수익율"]
+    od = od[[c for c in oorder if c in od.columns]].sort_values("총판매수", ascending=False)
+    st.dataframe(od, width='stretch', hide_index=True, column_config=num_config(od))
 
