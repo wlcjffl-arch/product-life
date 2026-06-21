@@ -60,7 +60,10 @@ def get_engine():
         if url.startswith("sqlite"):
             _ENGINES[url] = create_engine(url, connect_args={"check_same_thread": False})
         else:
-            _ENGINES[url] = create_engine(url, pool_pre_ping=True)
+            # 대용량 업로드가 문장 시간제한에 안 걸리게 statement_timeout 넉넉히
+            _ENGINES[url] = create_engine(
+                url, pool_pre_ping=True,
+                connect_args={"options": "-c statement_timeout=180000"})
     return _ENGINES[url]
 
 
@@ -187,18 +190,31 @@ def _upsert(conn, table, df, key_cols, all_cols):
     set_clause = ", ".join(f"{c}=excluded.{c}" for c in update_cols)
     cols_csv = ", ".join(all_cols)
     conflict = ", ".join(key_cols)
-    # 한 문장에 들어갈 행 수: 바인드 변수 한도(SQLite·Postgres) 안쪽으로
-    chunk = max(1, 20000 // len(all_cols))
-    for start in range(0, len(records), chunk):
-        part = records[start:start + chunk]
-        rows_sql, params = [], {}
-        for i, rec in enumerate(part):
-            rows_sql.append("(" + ", ".join(f":{c}_{i}" for c in all_cols) + ")")
-            for c in all_cols:
-                params[f"{c}_{i}"] = rec[c]
-        sql = (f"INSERT INTO {table} ({cols_csv}) VALUES {', '.join(rows_sql)} "
+
+    if conn.engine.dialect.name == "postgresql":
+        # psycopg2 execute_values: 다수 행을 한 번에 — 가장 빠름
+        from psycopg2.extras import execute_values
+        sql = (f"INSERT INTO {table} ({cols_csv}) VALUES %s "
                f"ON CONFLICT ({conflict}) DO UPDATE SET {set_clause}")
-        conn.execute(text(sql), params)
+        data = [[rec[c] for c in all_cols] for rec in records]
+        cur = conn.connection.cursor()
+        try:
+            execute_values(cur, sql, data, page_size=1000)
+        finally:
+            cur.close()
+    else:
+        # SQLite 등: 다중행 INSERT 청크 (바인드 변수 한도 내)
+        chunk = max(1, 20000 // len(all_cols))
+        for start in range(0, len(records), chunk):
+            part = records[start:start + chunk]
+            rows_sql, params = [], {}
+            for i, rec in enumerate(part):
+                rows_sql.append("(" + ", ".join(f":{c}_{i}" for c in all_cols) + ")")
+                for c in all_cols:
+                    params[f"{c}_{i}"] = rec[c]
+            sql = (f"INSERT INTO {table} ({cols_csv}) VALUES {', '.join(rows_sql)} "
+                   f"ON CONFLICT ({conflict}) DO UPDATE SET {set_clause}")
+            conn.execute(text(sql), params)
     return inserted, updated
 
 
