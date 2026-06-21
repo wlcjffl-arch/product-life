@@ -1,4 +1,5 @@
 """판매 흐름 페이지."""
+import re
 from urllib.parse import quote
 
 import altair as alt
@@ -29,9 +30,18 @@ def num_config(df, extra=None):
 
 
 def mall_link(name):
-    """상품명으로 쇼핑몰 검색 링크 생성(대괄호 접두사 제거)."""
-    n = str(name or "").split("]")[-1].strip()
-    return f"{MALL}/product/search.html?keyword={quote(n)}" if n else None
+    """상품명에서 검색어를 뽑아 쇼핑몰 검색 링크 생성.
+
+    - ( ) 가 있으면 괄호 안을 검색어로 (예: 똑핏팬츠4탄(365썸머와이드팬츠) → 365썸머와이드팬츠)
+    - [ ] 는 제거하고 나머지 제목을 검색어로 (예: 나루시보리티셔츠[여름5부VER.] → 나루시보리티셔츠)
+    """
+    n = str(name or "")
+    m = re.search(r"\(([^)]+)\)", n)
+    if m:
+        kw = m.group(1).strip()
+    else:
+        kw = re.sub(r"\[[^\]]*\]", " ", n).strip()
+    return f"{MALL}/product/search.html?keyword={quote(kw)}" if kw else None
 
 channel, start, end = sidebar_filters("sales")
 settings = cached(("settings",), db.load_settings)
