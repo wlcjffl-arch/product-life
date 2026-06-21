@@ -161,6 +161,7 @@ def parse_option(s):
     s = str(s).strip()
     if not s:
         return ("", "")
+    s = _NUM_PREFIX.sub("", s).strip()   # 맨 앞 번호 "0006)" "2." 등 제거(공백 무관)
 
     # 1) 라벨이 있으면 그대로 신뢰 (수량 잡음만 제거)
     mc, ms = _LABEL_COLOR.search(s), _LABEL_SIZE.search(s)

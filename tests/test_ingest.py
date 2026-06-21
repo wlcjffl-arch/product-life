@@ -47,6 +47,9 @@ def test_normalize_option():
     assert normalize_option("베이지(살구)") != normalize_option("베이지")
     # 색상 라벨 + 라벨없는 사이즈 혼합도 보충
     assert normalize_option("색상=흰색(white)/M") == "흰색 / M"
+    # 앞 번호 'NNNN)' 제거(공백 무관), 진짜 숫자 사이즈는 보존
+    assert normalize_option("0006)흰색") == normalize_option("0006) 흰색") == "흰색"
+    assert normalize_option("흰색,66") == "흰색 / 66"
 
 
 def test_find_date_cols():
