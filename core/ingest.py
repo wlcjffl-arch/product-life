@@ -258,6 +258,9 @@ def build_sales(df: pd.DataFrame, mapping: dict, channel: str):
     sales_long = (sales_long
                   .groupby(["channel", "product_code", "option_name", "sale_date"], as_index=False)
                   .agg({"product_name": "first", "sold_qty": "sum", "inbound_qty": "sum"}))
+    # 판매·입고가 모두 0인 날은 저장하지 않음(움직임 없는 날) → 데이터량·속도 대폭 개선.
+    # 합계·그래프는 동일(0은 더해도 0), period_series가 빈 날을 0으로 채워 표시.
+    sales_long = sales_long[(sales_long["sold_qty"] != 0) | (sales_long["inbound_qty"] != 0)]
 
     # 스냅샷
     snap = pd.DataFrame({
