@@ -163,7 +163,8 @@ def _records(df, cols):
 
 
 def _upsert(conn, table, df, key_cols, all_cols):
-    """df 행들을 UPSERT. (추가건수, 갱신건수) 반환."""
+    """df 행들을 UPSERT. (추가건수, 갱신건수) 반환.
+    여러 행을 한 INSERT 문으로 묶어 보내 네트워크(Supabase) 속도 개선."""
     if df is None or df.empty:
         return 0, 0
     records = _records(df, all_cols)
@@ -182,12 +183,22 @@ def _upsert(conn, table, df, key_cols, all_cols):
             inserted += 1
         seen.add(key)
 
-    binds = ", ".join(f":{c}" for c in all_cols)
     update_cols = [c for c in all_cols if c not in key_cols]
     set_clause = ", ".join(f"{c}=excluded.{c}" for c in update_cols)
-    sql = (f"INSERT INTO {table} ({', '.join(all_cols)}) VALUES ({binds}) "
-           f"ON CONFLICT ({', '.join(key_cols)}) DO UPDATE SET {set_clause}")
-    conn.execute(text(sql), records)
+    cols_csv = ", ".join(all_cols)
+    conflict = ", ".join(key_cols)
+    # 한 문장에 들어갈 행 수: 바인드 변수 한도(SQLite·Postgres) 안쪽으로
+    chunk = max(1, 20000 // len(all_cols))
+    for start in range(0, len(records), chunk):
+        part = records[start:start + chunk]
+        rows_sql, params = [], {}
+        for i, rec in enumerate(part):
+            rows_sql.append("(" + ", ".join(f":{c}_{i}" for c in all_cols) + ")")
+            for c in all_cols:
+                params[f"{c}_{i}"] = rec[c]
+        sql = (f"INSERT INTO {table} ({cols_csv}) VALUES {', '.join(rows_sql)} "
+               f"ON CONFLICT ({conflict}) DO UPDATE SET {set_clause}")
+        conn.execute(text(sql), params)
     return inserted, updated
 
 
