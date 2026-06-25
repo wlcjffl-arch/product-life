@@ -60,17 +60,17 @@ DATE_COL_SOLD_SUFFIX = "판매"
 DATE_COL_INBOUND_SUFFIX = "입고"
 
 RETURNS_FIELD_ALIASES = {
-    "product_code":   ["재고매칭(1)상품코드", "상품코드", "재고매칭상품코드"],
+    "product_code":   ["재고매칭(1)상품코드", "상품코드", "재고매칭상품코드", "판매처상품코드"],
     "channel_name":   ["판매처상품명"],
     "qty":            ["교환반품회수수량", "수량"],
     "option_name":    ["상품옵션", "옵션"],
-    "return_date":    ["교환반품회수일", "반품일", "반품날짜"],
+    "return_date":    ["교환반품회수일", "반품일", "반품날짜", "주문일자", "CS일자"],
     "channel":        ["판매처명", "판매처"],
     "order_no":       ["판매처주문번호", "주문번호"],
     "amount":         ["금액"],
-    "product_name":   ["옵션상품명", "상품명"],
+    "product_name":   ["옵션상품명", "원래상품명", "상품명"],
     "cost":           ["옵션원가", "원가"],
     "supplier":       ["공급처명(재고매칭)", "공급처명"],
-    "reason":         ["CS종류1", "반품사유"],
-    "cs_type":        ["CS유형1"],
+    "reason":         ["CS종류1", "취소종류", "취소사유", "반품사유"],
+    "cs_type":        ["CS유형1", "CS유형이름"],
 }

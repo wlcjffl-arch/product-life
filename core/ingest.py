@@ -34,13 +34,30 @@ _SIZE_TOKEN = re.compile(
 # ─────────────────────────── 파일 읽기 ───────────────────────────
 
 def read_raw(data: bytes, filename: str) -> pd.DataFrame:
-    """업로드 바이트 + 파일명 → 모든 값을 문자열로 읽은 DataFrame."""
+    """업로드 바이트 + 파일명 → 모든 값을 문자열로 읽은 DataFrame.
+
+    실제 엑셀이 아닌데 .xls/.xlsx 로 저장된 파일(탭구분 텍스트·HTML 표)도 처리.
+    한국 쇼핑몰 취소/반품 내역에 흔함."""
     name = (filename or "").lower()
     if name.endswith((".xlsx", ".xls")):
-        return pd.read_excel(io.BytesIO(data), dtype=str)
-    # CSV: 인코딩 자동 감지
+        try:
+            return pd.read_excel(io.BytesIO(data), dtype=str)   # 진짜 엑셀
+        except Exception:
+            pass   # 가짜 엑셀 → 아래 텍스트 처리로
+
     text = _decode(data)
-    return pd.read_csv(io.StringIO(text), dtype=str, keep_default_na=False)
+    head = text[:3000].lower()
+    if "<table" in head or "<html" in head:        # HTML 표를 .xls로 저장한 경우
+        try:
+            tables = pd.read_html(io.StringIO(text))
+            if tables:
+                return tables[0].astype(str)
+        except Exception:
+            pass
+    # 구분자 자동 감지 (탭 vs 쉼표)
+    first = text.split("\n", 1)[0]
+    sep = "\t" if first.count("\t") > first.count(",") else ","
+    return pd.read_csv(io.StringIO(text), sep=sep, dtype=str, keep_default_na=False)
 
 
 def _decode(data: bytes) -> str:
