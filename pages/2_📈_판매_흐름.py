@@ -1,18 +1,14 @@
 """판매 흐름 페이지."""
-import re
-from urllib.parse import quote
-
 import altair as alt
 import pandas as pd
 import streamlit as st
 
 from core import analytics, db
-from core.ui import setup_page, sidebar_filters, cached
+from core.ui import setup_page, sidebar_filters, cached, mall_link
 
 setup_page("판매 흐름", "📈")
 st.title("📈 판매 흐름")
 
-MALL = "https://dedra.co.kr"   # 쇼핑몰 주소 (상품 검색 링크용)
 _QTY = {"총판매수", "입고수량", "현재재고", "미발송수", "취소수량", "판매수량"}
 _MONEY = {"원가", "판매단가", "매출액"}
 _PCT = {"수익율", "취소율"}
@@ -28,20 +24,6 @@ def num_config(df, extra=None):
             cfg[c] = st.column_config.NumberColumn(format="localized")
     return cfg
 
-
-def mall_link(name):
-    """상품명에서 검색어를 뽑아 쇼핑몰 검색 링크 생성.
-
-    - ( ) 가 있으면 괄호 안을 검색어로 (예: 똑핏팬츠4탄(365썸머와이드팬츠) → 365썸머와이드팬츠)
-    - [ ] 는 제거하고 나머지 제목을 검색어로 (예: 나루시보리티셔츠[여름5부VER.] → 나루시보리티셔츠)
-    """
-    n = str(name or "")
-    m = re.search(r"\(([^)]+)\)", n)
-    if m:
-        kw = m.group(1).strip()
-    else:
-        kw = re.sub(r"\[[^\]]*\]", " ", n).strip()
-    return f"{MALL}/product/search.html?keyword={quote(kw)}" if kw else None
 
 channel, start, end = sidebar_filters("sales")
 settings = cached(("settings",), db.load_settings)
@@ -78,7 +60,12 @@ def period_chart(df, prd, height=320):
         color=alt.Color("flag:N", scale=alt.Scale(
             domain=["급등 ▲", "급감 ▼"], range=["#2ca02c", "#d62728"]), title="신호"),
         tooltip=[alt.Tooltip("bucket:N", title=xlabel), "sold_qty", "flag"])
-    return (line + pts).properties(height=height).add_params(zoom), marked, xlabel
+    chart = (line + pts).properties(height=height)
+    try:
+        chart = chart.add_params(zoom)        # altair 5
+    except AttributeError:
+        chart = chart.add_selection(zoom)     # altair 4
+    return chart, marked, xlabel
 
 
 # ── 전체 판매 흐름 (검색 없음) ──

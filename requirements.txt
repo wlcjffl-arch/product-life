@@ -2,7 +2,11 @@ streamlit>=1.31,<2
 pandas>=2.0,<3
 openpyxl>=3.1
 charset-normalizer>=3.3
-altair>=5.0
+# AgGrid가 altair<5 를 요구해 4 로 고정(코드는 add_params/add_selection 둘 다 지원)
+altair>=4.2,<5
 SQLAlchemy>=2.0
 psycopg2-binary>=2.9
 python-docx>=1.1
+# 엑셀형 표
+streamlit-aggrid==1.0.5
+python-decouple>=3.8

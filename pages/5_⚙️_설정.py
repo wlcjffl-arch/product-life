@@ -30,11 +30,29 @@ with st.form("thresholds"):
     c7, c8 = st.columns(2)
     lead = c7.number_input("기본 입고기간 (일)", 1, 120, int(s["default_lead_time_days"]))
     vel = c8.number_input("판매속도 계산기간 (최근 N일)", 1, 90, int(s["velocity_window_days"]))
+
+    st.markdown("**정리(그만 팔기) 추천 기준**")
+    st.caption("반품 많은 상품을 내리되, 신상품과 표본이 적은 상품은 보호(관찰)합니다.")
+    c9, c10, c11 = st.columns(3)
+    drr = c9.number_input("정리 반품율 기준 (%)", 0, 100,
+                          int(s["discontinue_return_rate"] * 100), step=5,
+                          help="이 반품율 이상이면 ⛔정리 (단, 아래 두 조건을 통과해야 함)")
+    rsq = c10.number_input("신뢰 누적판매 (이상 개수)", 0, 1000,
+                           int(s["reliable_sold_qty"]),
+                           help="누적 판매가 이 수량 미만이면 반품율을 믿지 않고 '관찰'")
+    npd = c11.number_input("신상품 보호기간 (등록 후 일)", 0, 180,
+                           int(s["new_product_days"]),
+                           help="등록 후 이 기간 이내면 정리 추천을 보류하고 '관찰'")
+    kws = st.number_input("최근 1주 판매 보호 (이상 개수)", 0, 100,
+                          int(s["keep_weekly_sold"]),
+                          help="최근 1주 판매가 이 수량 이상이면 정리 대상에서 제외(롱테일 매출 보호)")
     if st.form_submit_button("💾 기준값 저장", type="primary"):
         db.save_settings({
             "return_rate_flag": rr / 100, "no_sales_days": nd, "low_sales_qty": lsq,
             "low_sales_return_rate": lsr / 100, "spike_pct": sp / 100, "drop_pct": dp / 100,
             "default_lead_time_days": lead, "velocity_window_days": vel,
+            "discontinue_return_rate": drr / 100, "reliable_sold_qty": rsq,
+            "new_product_days": npd, "keep_weekly_sold": kws,
         })
         clear_cache()
         st.success("저장했습니다.")

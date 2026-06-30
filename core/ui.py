@@ -5,12 +5,30 @@ kind 로 '판매흐름용/반품용/전체용'을 구분합니다. 각 데이터
 """
 import datetime as dt
 import os
+import re
+from urllib.parse import quote
 
 import streamlit as st
 
 from . import db
 
+MALL = "https://dedra.co.kr"   # 쇼핑몰 주소 (상품 검색 링크용)
 _LABEL = {"sales": "📦 판매 데이터", "returns": "🔁 반품 데이터", "all": "📊 전체 데이터"}
+
+
+def mall_link(name):
+    """상품명에서 검색어를 뽑아 쇼핑몰 검색 링크 생성.
+
+    - ( ) 가 있으면 괄호 안을 검색어로 (예: 똑핏팬츠4탄(365썸머와이드팬츠) → 365썸머와이드팬츠)
+    - [ ] 는 제거하고 나머지 제목을 검색어로 (예: 나루시보리티셔츠[여름5부VER.] → 나루시보리티셔츠)
+    """
+    n = str(name or "")
+    m = re.search(r"\(([^)]+)\)", n)
+    if m:
+        kw = m.group(1).strip()
+    else:
+        kw = re.sub(r"\[[^\]]*\]", " ", n).strip()
+    return f"{MALL}/product/search.html?keyword={quote(kw)}" if kw else None
 _ASSETS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
 
 _CSS = """
